@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/item";
 import { Button } from "@/components/ui/button";
 import PanelHeading from "@/components/PanelHeading.vue";
+import { scenarioPlugins } from "@/plugins/registry";
 import { useGeoStore } from "@/stores/geoStore";
 import { useUiStore } from "@/stores/uiStore";
 import { useBoxDraw } from "@/composables/geoBoxDraw";
@@ -23,10 +24,9 @@ const ExportImageForm = defineAsyncComponent(
 );
 
 type Bbox = [number, number, number, number];
-type ToolId = "export";
 
 interface ToolDef {
-  id: ToolId;
+  id: string;
   name: string;
   description: string;
   icon: Component;
@@ -34,12 +34,14 @@ interface ToolDef {
   available: boolean;
   /** Shown in place of the description when the tool is unavailable. */
   unavailableHint?: string;
+  /** Set for a plugin. The export tool renders its own form. */
+  component?: Component;
 }
 
 const geoStore = useGeoStore();
 const uiStore = useUiStore();
 
-const activeToolId = ref<ToolId | null>(null);
+const activeToolId = ref<string | null>(null);
 const drawnExportBounds = ref<Bbox | null>(null);
 
 // The image export is MapLibre-specific, so only expose it when the active
@@ -58,6 +60,15 @@ const tools = computed<ToolDef[]>(() => [
     available: !!mlMap.value,
     unavailableHint: "Only available with the MapLibre map engine.",
   },
+  ...scenarioPlugins.map((plugin) => ({
+    id: plugin.id,
+    name: plugin.name,
+    description: plugin.description,
+    icon: plugin.icon,
+    available: plugin.available?.() ?? true,
+    unavailableHint: plugin.unavailableHint,
+    component: plugin.component,
+  })),
 ]);
 
 const activeTool = computed(
@@ -127,6 +138,7 @@ function closeActiveTool() {
       @request-draw-rect="onRequestDrawRect"
       @cancel="closeActiveTool"
     />
+    <component :is="activeTool.component" v-else-if="activeTool.component" />
   </div>
 
   <!-- List view: pick a tool. -->
